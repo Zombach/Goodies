@@ -4,54 +4,80 @@ string path = "путь к файлу";
 string start = "началоо блока";
 string end = "конец блока";
 
-
-byte[] expectedStart = Encoding.UTF8.GetBytes(start);
-byte[] expectedEnd = Encoding.UTF8.GetBytes(end);
-using Stream stream = File.OpenRead(path);
-
-long index = 0;
-bool isStart = true;
-long length = stream.Length;
-List<long> indexs = new();
-while (length >= index)
+try
 {
-    int ch = stream.ReadByte();
-    int expectedCh = isStart ? expectedStart[0] : expectedEnd[0];
-    if (ch == expectedCh)
-    {
-        stream.Position = index;
-        Span<byte> chars = new(new byte[isStart ? expectedStart.Length : expectedEnd.Length]);
-        int read = stream.Read(chars);
+    ExpectedModel expected = new(start, end);
+    using Stream stream = File.OpenRead(fileInfo.FullName);
 
-        bool isEarly = true;
-        byte[] expected = isStart ? expectedStart : expectedEnd;
-        for (int i = 0; i < chars.Length; i++)
+    long index = 0;
+    bool isStart = true;
+    long length = stream.Length;
+    List<long> indexs = new();
+    while (length >= index)
+    {
+        int ch = stream.ReadByte();
+        int expectedCh = expected.GetExpectedChar(isStart);
+        if (ch == expectedCh)
         {
-            if (expected[i] != chars[i])
+            stream.Position--;
+
+            bool isEarly = true;
+            byte[] expectedArray = expected.GetExpected(isStart);
+            foreach (byte item in expectedArray)
             {
+                if (item == stream.ReadByte()) { continue; }
                 isEarly = false;
                 break;
             }
+
+            if (isEarly)
+            {
+                index = isStart ? index : index + expected.GetExpectedLength(false);
+                isStart = !isStart;
+                indexs.Add(index);
+            }
+            stream.Position = index + 1;
         }
 
-        if (!isEarly)
-        {
-            stream.Position = ++index;
-            continue;
-        }
-
-        indexs.Add(isStart ? index : index + expectedEnd.Length);
-        isStart = !isStart;
+        index++;
     }
 
-    index++;
-}
+    List<string> source = new();
+    for (int i = 0; i < indexs.Count; i += 2)
+    {
+        Span<byte> bytes = new(new byte[indexs[i + 1] - indexs[i]]);
+        stream.Position = indexs[i];
+        int read = stream.Read(bytes);
+        source.Add(Encoding.UTF8.GetString(bytes));
+    }
 
-List<string> source = new();
-for (int i = 0; i < indexs.Count; i += 2)
+}
+catch (Exception e) { throw Log.Throw($"{e.Message}"); }
+
+public class ExpectedModel
 {
-    Span<byte> bytes = new(new byte[indexs[i + 1] - indexs[i]]);
-    stream.Position = indexs[i];
-    int read = stream.Read(bytes);
-    source.Add(Encoding.UTF8.GetString(bytes));
+    private readonly byte[] _expectedStart;
+    private readonly byte _expectedStartChar;
+    private readonly int _expectedStartLength;
+    private readonly byte[] _expectedEnd;
+    private readonly byte _expectedEndChar;
+    private readonly int _expectedEndLength;
+
+    public ExpectedModel(string start, string end)
+    {
+        if (string.IsNullOrEmpty(start) || string.IsNullOrEmpty(end))
+        {
+            throw Log.Instance.Throw("Не корректно заданы границы");
+        }
+        _expectedStart = Encoding.UTF8.GetBytes(start);
+        _expectedStartChar = _expectedStart[0];
+        _expectedStartLength = _expectedStart.Length;
+        _expectedEnd = Encoding.UTF8.GetBytes(end);
+        _expectedEndChar = _expectedEnd[0];
+        _expectedEndLength = _expectedEnd.Length;
+    }
+
+    public byte[] GetExpected(bool isStart) => isStart ? _expectedStart : _expectedEnd;
+    public byte GetExpectedChar(bool isStart) => isStart ? _expectedStartChar : _expectedEndChar;
+    public int GetExpectedLength(bool isStart) => isStart ? _expectedStartLength : _expectedEndLength;
 }

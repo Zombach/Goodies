@@ -84,6 +84,14 @@
                 </a>
             </h3>
             <p>Средство форматирования кода с использованием prettier</p>
-        </div>      
+        </div>     
+         <div>
+            <h3>
+                <a href="https://marketplace.visualstudio.com/items?itemName=dsznajder.es7-react-js-snippets">
+                  ES7+ React/Redux/React-Native snippets
+                </a>
+            </h3>
+            <p>snippets</p>
+        </div>
     </body>
 </html>
